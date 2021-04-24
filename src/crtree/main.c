@@ -71,18 +71,18 @@ void int_handler(int sig)
 }
 
 // Funcion que ocupan los manager o root para escribir sus archivos
-void output_rewrite_lines(char* process, char* child_process){
+void output_rewrite_lines(int process, int child_process){
 
-  char child_path[15];
-  sprintf(child_path, "./%s.txt", child_process);
+  char child_path[20];
+  sprintf(child_path, "./%i.txt", child_process);
   FILE* child_file = fopen(child_path, "r");
-  char father_path[7];
-  sprintf(father_path, "./%s.txt", process);
+  char father_path[20];
+  sprintf(father_path, "./%i.txt", process);
   FILE* father_file = fopen(father_path, "a");
   char buffer[BUFFER_SIZE];
-  printf("Manager o Root de la linea %s: Reescribiendo lineas de %s.txt en %s.txt\n", process, child_process, process);
+  printf("Manager o Root de la linea %i: Reescribiendo lineas de %s en %s\n", process, child_path, father_path);
   while (fgets(buffer, BUFFER_SIZE, child_file)){
-    printf("Pasando linea: %s del archivo %s.txt al %s.txt\n", buffer, child_process, process);
+    printf("Pasando linea: %s del archivo %s al %s\n", buffer, child_path, father_path);
     fputs(buffer, father_file);
   }
   fclose(father_file);
@@ -136,14 +136,14 @@ int main(int argc, char **argv){
     int n_childs = atoi(line[2]);
 
     signal(SIGALRM,(void (*)(int))alarm_handler); // Register signal handler
-    char* line_id_arr[n_childs];
+    int child_process_arr[n_childs];
     int status;
     for (int i = 0; i < n_childs; i++){
 
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
       sprintf(line_to_exec, "%i", line_int);
-      line_id_arr[i] = line[i + 3];
+      child_process_arr[i] = atoi(line[i + 3]);
       pid_t child_pid = fork();
 
       //En caso de que childpid < 0 algun error hubo
@@ -175,7 +175,7 @@ int main(int argc, char **argv){
     };
     for (int j = 0; j < n_childs; j++)
     {
-      output_rewrite_lines(argv[2], line_id_arr[j]);
+      output_rewrite_lines(process, child_process_arr[j]);
     }
     input_file_destroy(input);
     return 0;
@@ -189,13 +189,13 @@ int main(int argc, char **argv){
     signal(SIGABRT,(void (*)(int))abort_handler_manager); // Register signal handler
     signal(SIGALRM,(void (*)(int))alarm_handler); // Register signal handler
 
-    char* line_id_arr[n_childs];
+    int child_process_arr[n_childs];
     int status;
     for (int i = 0; i < n_childs; i++){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
       sprintf(line_to_exec, "%i", line_int);
-      line_id_arr[i] = line_to_exec;
+      child_process_arr[i] = line_int;
 
       pid_t child_pid = fork();
       //En caso de que childpid < 0 algun error hubo
@@ -227,7 +227,7 @@ int main(int argc, char **argv){
     };
     for (int j = 0; j < counter; j++)
     {
-      output_rewrite_lines(argv[2], line_id_arr[j]);
+      output_rewrite_lines(process, child_process_arr[j]);
     }
     input_file_destroy(input);
     return 0;
@@ -279,7 +279,7 @@ int main(int argc, char **argv){
         wait(&status);
         time(&end);
         int exe_time = ((double) (end - start));
-        sprintf(interrupted, "%d", WIFSIGNALED(signaled));
+        sprintf(interrupted, "%d\n", WIFSIGNALED(signaled));
         sprintf(exit_code, "%d", WEXITSTATUS(status));
         sprintf(time_taken, "%d", exe_time);
         args_to_file[n_args + 1] = time_taken;
