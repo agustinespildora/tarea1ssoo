@@ -80,8 +80,9 @@ void output_rewrite_lines(char* process, char* child_process){
   sprintf(father_path, "./%s.txt", process);
   FILE* father_file = fopen(father_path, "a");
   char buffer[BUFFER_SIZE];
+  printf("Manager o Root de la linea %s: Reescribiendo lineas de %s.txt en %s.txt\n", process, child_process, process);
   while (fgets(buffer, BUFFER_SIZE, child_file)){
-    printf("Linea de archivo del proceso %s: %s\n", child_process, buffer);
+    printf("Pasando linea: %s del archivo %s.txt al %s.txt\n", buffer, child_process, process);
     fputs(buffer, father_file);
   }
   fclose(father_file);
@@ -92,7 +93,7 @@ char* concat_array(int n_args, char** array){
   char* line = calloc(BUFFER_SIZE, sizeof(char));
   for (int i = 0; i < n_args + 4; i++)
   {
-    printf("concat arrays array[%i]: %s\n", i, array[i]);
+    printf("Concatenando args a una linea -> array[%i] = %s\n", i, array[i]);
     strcat(line, array[i]);
     if (i < n_args + 3){
       strcat(line, ",");
@@ -106,7 +107,7 @@ void output_worker(char* process, int n_args, char** args) {
   sprintf(path, "./%s.txt", process);
   FILE* file = fopen(path, "a");
   char* line = concat_array(n_args, args);
-  printf("Line de worker: %s\n", line);
+  printf("Worker de la linea %s: Esribiendo linea: %s en ./%s.txt\n", process, line, process);
   fputs(line, file);
   free(line);
   fclose(file);
@@ -119,7 +120,6 @@ int main(int argc, char **argv){
   n_lines = input->len;
   char* process_str = argv[2];
   int process = atoi(process_str);
-  printf("Here's my PID: %d\nHeres my line:%d\n", getpid(), process);
   path = input_path;
   n_process = process;
   
@@ -131,7 +131,7 @@ int main(int argc, char **argv){
 
   //Si el identificador es R (Root) se hace lo mismo:
   if (strcmp(id, R) == 0){
-    printf("Entra a Root, linea:%d\n", process);
+    printf("Linea %d es Root y su PID es: %d\n", process, getpid());
     int timeout_son = atoi(line[1]);
     int n_childs = atoi(line[2]);
 
@@ -143,7 +143,7 @@ int main(int argc, char **argv){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
       sprintf(line_to_exec, "%i", line_int);
-      line_id_arr[i] = line_to_exec;
+      line_id_arr[i] = line[i + 3];
       pid_t child_pid = fork();
 
       //En caso de que childpid < 0 algun error hubo
@@ -151,7 +151,7 @@ int main(int argc, char **argv){
         //Hijo
         if (child_pid == 0){
           // execlp(ejecutable, argv[0] (ejecutable de nuevo), argv[1], ...)
-          printf("Root: Entra al hijooo\n");
+          printf("Root: Voy a ejecutar mi hijo que está en la linea %d\n", line_int);
           execlp("./crtree", "./crtree", input_path, line_to_exec, (char*)NULL);
         }
         //Padre
@@ -172,10 +172,8 @@ int main(int argc, char **argv){
     ////////////////////////////////////////////////////////////////
     int wpid;
     while ((wpid = wait(&status)) > 0){
-      printf("Soy root, waiting son (while):%d\n", wpid);
     };
-    printf("Soy root salí del while wpid wait\n");
-    for (int j = 0; j < counter; j++)
+    for (int j = 0; j < n_childs; j++)
     {
       output_rewrite_lines(argv[2], line_id_arr[j]);
     }
@@ -184,7 +182,7 @@ int main(int argc, char **argv){
   }
 
   else if (strcmp(id, M) == 0 ){
-    printf("Entra a Manager, linea:%d\n", process);
+    printf("Linea %d es Manager y su PID es: %d\n", process, getpid());
     int timeout_son = atoi(line[1]);
     int n_childs = atoi(line[2]);
     signal(SIGINT,(void (*)(int))int_handler); // Register signal handler
@@ -205,14 +203,12 @@ int main(int argc, char **argv){
         //Hijo
         if (child_pid == 0){
           // execlp(ejecutable, argv[0] (ejecutable de nuevo), argv[1], ...)
-          printf("Manager: Entra al hijooo\n");
+          printf("Manager de linea %d: voy a ejecutar mi hijo que está en la linea %d\n", process, line_int);
           execlp("./crtree", "./crtree", input_path, line_to_exec, (char*)NULL);
         }
         //Padre
         else{
-          printf("Soy proceso %d\nMi hijo es%d\n", process, child_pid);
           arr[counter] = child_pid;
-          printf("arr[counter] %d\ncounter%d\n", arr[counter], counter);
           counter++;
           
         }
@@ -228,9 +224,7 @@ int main(int argc, char **argv){
     //////////////////////////////////////////////////////////
     int wpid;
     while ((wpid = wait(&status)) > 0){
-      printf("Soy manager, waiting son (while):%d\n", wpid);
     };
-    printf("Soy manager salí del while wpid wait\n");
     for (int j = 0; j < counter; j++)
     {
       output_rewrite_lines(argv[2], line_id_arr[j]);
@@ -243,10 +237,9 @@ int main(int argc, char **argv){
   // Si el identificador es W (Worker):
 
   else if (strcmp(id, W) == 0 ){
-    printf("Entra a Worker, linea:%d\n", process);
+    printf("Linea %d es Worker y su PID es: %d\n", process, getpid());
     signal(SIGINT,(void (*)(int))int_handler); // Register signal handler
     char* exe = line[1];
-    printf("Ejecutable de worker:%s\n", exe);
     int n_args = atoi(line[2]);
     char** args = calloc(n_args + 2, sizeof(char*));
     char** args_to_file = calloc(n_args + 4, sizeof(char*));
@@ -254,17 +247,17 @@ int main(int argc, char **argv){
     args[0] = exe;
     args_to_file[0] = exe;
     for (int j = 1; j < n_args + 1; j++){
-      int line_int = atoi(line[j + 3]);
-      
-      char arg[2];
-      sprintf(arg, "%i", line_int);
-      printf("ARGUMENTOS WORKER: %s n_args %i\n", arg, n_args);
-      args[j] = arg;
-      args_to_file[j] = arg;
+      char* clean_line = line[j+2];
+
+      // printf("clean line antes: %s\n", clean_line);
+      // clean_line[strcspn(clean_line, "\n")] = 0;
+      // printf("clean line despues: %s\n", clean_line);
+
+      args[j] = clean_line;
+      args_to_file[j] = clean_line;
     }
-    printf("sale del for de argumentos worker\n");
     args[n_args + 1] = (char*)NULL;
-    
+    printf("Worker de la linea %d: voy a ejecutar %s\n", process, exe);
     
     signal(SIGABRT,(void (*)(int))abort_handler_worker); // Register signal handler
     //Creamos el hijo
@@ -283,26 +276,23 @@ int main(int argc, char **argv){
       }
       //Padre
       else{
-        printf("LLEGA A ANTES DEL WAIT DE WORKER\n");
         wait(&status);
-        printf("LLEGA A DESPUES DEL WAIT DE WORKER\n");
         time(&end);
         int exe_time = ((double) (end - start));
         sprintf(interrupted, "%d", WIFSIGNALED(signaled));
         sprintf(exit_code, "%d", WEXITSTATUS(status));
         sprintf(time_taken, "%d", exe_time);
-        printf("Llega a despues de los SPRINTF\n");
         args_to_file[n_args + 1] = time_taken;
         args_to_file[n_args + 2] = exit_code;
         args_to_file[n_args + 3] = interrupted;
         char process_f[2];
         sprintf(process_f, "%i", process);
-        printf("LLEGA AL FINAL DEL WORKER, ultimo arg:%s time: %s, exit: %s, interrupted:%s\n", args_to_file[n_args], args_to_file[n_args + 1], args_to_file[n_args + 2], args_to_file[n_args + 3]);
-        for (int r = 0; r < n_args + 4; r++)
-        {
-          printf("BUG BUG BUG args_to_file[%i]:%s\n", r, args_to_file[r]);
-        }
-        
+        // printf("LLEGA AL FINAL DEL WORKER, ultimo arg:%s time: %s, exit: %s, interrupted:%s\n", args_to_file[n_args], args_to_file[n_args + 1], args_to_file[n_args + 2], args_to_file[n_args + 3]);
+        // for (int r = 0; r < n_args + 4; r++)
+        // {
+        //   printf("BUG BUG BUG args_to_file[%i]:%s\n", r, args_to_file[r]);
+        // }
+        printf("Worker de la linea %d (%s): Terminé!! Ahora voy a escribir mi archivo\n", process, exe);
         output_worker(process_f, n_args, args_to_file);
         free(args);
         free(args_to_file);
