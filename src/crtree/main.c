@@ -11,6 +11,10 @@
 #define num 255
 int arr[num];
 
+int abort_flag = 0;
+int alarm_flag = 0;
+int sigint_flag = 0;
+
 char* path;
 int n_lines;
 int n_process;
@@ -25,17 +29,12 @@ char interrupted[3];
 
 void alarm_handler(int sig)
 {
-  for (int i = 0; i <  counter; i++) {
-    printf("printeando array, posición %d, valor %d, \n",i, arr[i]);
-  }
-  for (int i = 0; i < counter; i++) {
-      kill(arr[i], SIGABRT);
-  }
-  int wpid;
-  int status_handler;
-  while ((wpid = wait(&status_handler)) > 0);
-  printf("mandando señal a los hijos\n");
-  exit(0);    
+  alarm_flag = 1;  
+}
+
+void sigint_handler(int sig)
+{
+  sigint_flag = 1;  
 }
 
 void abort_handler_worker(int sig)
@@ -64,6 +63,9 @@ void abort_handler_manager(int sig)
     
 }
 
+void abort_handler(int sig){
+  abort_flag = 1;
+}
 void int_handler(int sig)
 {
   printf("\n***IGNORING***\n");
@@ -134,12 +136,13 @@ int main(int argc, char **argv){
     printf("Linea %d es Root y su PID es: %d\n", process, getpid());
     int timeout_son = atoi(line[1]);
     int n_childs = atoi(line[2]);
+    int child_array[n_childs];
 
-    signal(SIGALRM,(void (*)(int))alarm_handler); // Register signal handler
+    
     int child_process_arr[n_childs];
     int status;
-    for (int i = 0; i < n_childs; i++){
 
+    for (int i = 0; i < n_childs; i++){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
       sprintf(line_to_exec, "%i", line_int);
@@ -156,8 +159,10 @@ int main(int argc, char **argv){
         }
         //Padre
         else{
-          signal(SIGINT,(void (*)(int))alarm_handler); // Register signal handler
-          arr[counter] = child_pid;
+          signal(SIGINT,(void (*)(int))sigint_handler); 
+          signal(SIGALRM,(void (*)(int))alarm_handler); 
+          // arr[counter] = child_pid;
+          child_array[counter] = child_pid;
           counter++;
         }
       }
@@ -168,11 +173,30 @@ int main(int argc, char **argv){
       }
     }
     /////////////////////////////////////////////////////////////
-    alarm(15);
+    alarm(timeout_son);
     ////////////////////////////////////////////////////////////////
     int wpid;
-    while ((wpid = wait(&status)) > 0){
-    };
+    while(wpid = wait(&status) > 0);{
+      if (alarm_flag){
+        alarm_flag = 0;
+        printf("ALARMA EN ROOT");
+        for (int i = 0; i < n_childs; i++) {
+          printf("printeando array, posición %d, valor %d, \n",i, child_array[i]);
+          kill(child_array[i], SIGABRT);
+        }
+        printf("Uniendo archivos");
+        printf("Here's my PID: %d\n\n", getpid());
+      }
+      if (sigint_flag == 1){
+        sigint_flag = 0;
+        for (int i = 0; i < n_childs; i++) {
+          printf("printeando array, posición %d, valor %d, \n",i, child_array[i]);
+          kill(child_array[i], SIGABRT);
+        }
+        printf("Uniendo archivos");
+        printf("Here's my PID: %d\n\n", getpid());
+      }
+    }
     for (int j = 0; j < n_childs; j++)
     {
       output_rewrite_lines(process, child_process_arr[j]);
@@ -185,12 +209,13 @@ int main(int argc, char **argv){
     printf("Linea %d es Manager y su PID es: %d\n", process, getpid());
     int timeout_son = atoi(line[1]);
     int n_childs = atoi(line[2]);
-    signal(SIGINT,(void (*)(int))int_handler); // Register signal handler
-    signal(SIGABRT,(void (*)(int))abort_handler_manager); // Register signal handler
+    signal(SIGINT,(void (*)(int))sigint_handler); // Register signal handler
+    signal(SIGABRT,(void (*)(int))abort_handler); // Register signal handler
     signal(SIGALRM,(void (*)(int))alarm_handler); // Register signal handler
 
     int child_process_arr[n_childs];
     int status;
+    int child_array[n_childs];
     for (int i = 0; i < n_childs; i++){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
@@ -208,7 +233,7 @@ int main(int argc, char **argv){
         }
         //Padre
         else{
-          arr[counter] = child_pid;
+          child_array[counter] = child_pid;
           counter++;
           
         }
@@ -223,6 +248,23 @@ int main(int argc, char **argv){
     alarm(15);
     //////////////////////////////////////////////////////////
     int wpid;
+    while((wpid = wait(&status)) > 0);{
+      if (abort_flag || alarm_flag){
+        printf("ALARMA O ABORT EN MANAGER");
+        abort_flag = 0;
+        alarm_flag = 0;
+        for (int i = 0; i < n_childs; i++) {
+          printf("printeando array, posición %d, valor %d, \n",i, child_array[i]);
+          kill(child_array[i], SIGABRT);
+        }
+        printf("Uniendo archivos");
+        printf("Here's my PID: %d\n\n", getpid());
+      }
+      if (sigint_flag == 1){
+        sigint_flag = 0;
+        printf("IGNORING");
+      }
+    }
     while ((wpid = wait(&status)) > 0){
     };
     for (int j = 0; j < counter; j++)
@@ -238,7 +280,7 @@ int main(int argc, char **argv){
 
   else if (strcmp(id, W) == 0 ){
     printf("Linea %d es Worker y su PID es: %d\n", process, getpid());
-    signal(SIGINT,(void (*)(int))int_handler); // Register signal handler
+    signal(SIGINT,(void (*)(int))sigint_handler); 
     char* exe = line[1];
     int n_args = atoi(line[2]);
     char** args = calloc(n_args + 2, sizeof(char*));
@@ -259,7 +301,7 @@ int main(int argc, char **argv){
     args[n_args + 1] = (char*)NULL;
     printf("Worker de la linea %d: voy a ejecutar %s\n", process, exe);
     
-    signal(SIGABRT,(void (*)(int))abort_handler_worker); // Register signal handler
+    signal(SIGABRT,(void (*)(int))abort_handler); 
     //Creamos el hijo
     int status;
     int signaled;
@@ -277,6 +319,14 @@ int main(int argc, char **argv){
       //Padre
       else{
         wait(&status);
+        if (abort_flag == 1){
+            abort_flag = 0;
+            printf("Closing file");
+          }
+          if (sigint_flag ==1){
+            sigint_flag = 0;
+            printf("IGNORING");
+          }
         time(&end);
         int exe_time = ((double) (end - start));
         sprintf(interrupted, "%d\n", WIFSIGNALED(signaled));
