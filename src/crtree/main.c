@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include "../file_manager/manager.h"
 
-// FALTA: TESTEAR SIGINT (CTRL +C), ARREGLAR SALTO DE LINEA EN ESCRITURA, HARDCODEAR INTERRUPTED
 #define num 255
 int arr[num];
 
@@ -19,15 +18,10 @@ int sigint_flag = 0;
 
 char* path;
 int n_lines;
-int n_process;
 int counter = 0;
 char time_taken[10];
-char exit_code[2];
-char interrupted[3];
-
-// char* time_taken;
-// char* exit_code;
-// char* interrupted;
+char exit_code[10];
+char interrupted[10];
 
 void alarm_handler(int sig)
 {
@@ -38,15 +32,6 @@ void sigint_handler(int sig)
 {
   sigint_flag = 1;  
 }
-
-// void abort_handler_worker(int sig)
-// {
-
-//   printf("Closing file");
-//   printf("Here's my PID: %d\n\n", getpid());
-//   exit(0);
-    
-// }
 
 void abort_handler_manager(int sig)
 {
@@ -62,17 +47,11 @@ void abort_handler_manager(int sig)
   printf("Uniendo archivos");
   printf("Here's my PID: %d\n\n", getpid());
   exit(0);
-    
 }
 
 void abort_handler(int sig){
   abort_flag = 1;
 }
-// void int_handler(int sig)
-// {
-//   printf("\n***IGNORING***\n");
-    
-// }
 
 // Funcion que ocupan los manager o root para escribir sus archivos
 void output_rewrite_lines(int process, int child_process){
@@ -126,7 +105,6 @@ int main(int argc, char **argv){
   char* process_str = argv[2];
   int process = atoi(process_str);
   path = input_path;
-  n_process = process;
   
   char** line = input->lines[process];
   char* id = line[0];
@@ -148,7 +126,7 @@ int main(int argc, char **argv){
     for (int i = 0; i < n_childs; i++){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
-      sprintf(line_to_exec, "%i", line_int);
+      sprintf(line_to_exec, "%d", line_int);
       child_process_arr[i] = atoi(line[i + 3]);
       pid_t child_pid = fork();
 
@@ -187,8 +165,8 @@ int main(int argc, char **argv){
           if (errno == ECHILD) break; // no more child processes
       }
       // Si se detecta la flag de alarm (timeout)
-      if (alarm_flag){
-        printf("ALARMA EN ROOT");
+      if (alarm_flag || sigint_flag){
+        printf("ALARMA: %i o SIGINT: %i EN ROOT", alarm_flag, sigint_flag);
         // Manda señal a sus hijos
         for (int i = 0; i < n_childs; i++) {
           printf("posición %d, valor %d, \n",i, child_array[i]);
@@ -249,7 +227,7 @@ int main(int argc, char **argv){
     for (int i = 0; i < n_childs; i++){
       int line_int = atoi(line[i + 3]);
       char line_to_exec[2];
-      sprintf(line_to_exec, "%i", line_int);
+      sprintf(line_to_exec, "%d", line_int);
       child_process_arr[i] = line_int;
 
       pid_t child_pid = fork();
@@ -275,7 +253,7 @@ int main(int argc, char **argv){
       }
     }
     //////////////////////////////////////////////////////////
-    alarm(15);
+    alarm(timeout_son);
     //////////////////////////////////////////////////////////
     // Misma funcionalidad que el while de ROOT
     while (true) {
@@ -285,7 +263,7 @@ int main(int argc, char **argv){
       }
       // Si se activa la alarma o recibe señal de aborto de root actúa igual:
       if (abort_flag == 1 || alarm_flag == 1){
-        printf("ALARMA O ABORT EN MANAGER");
+        printf("ALARMA: %i O ABORT: %i EN MANAGER\n", alarm_flag, abort_flag);
         for (int i = 0; i < n_childs; i++) {
           printf("posición %d, valor %d, \n",i, child_array[i]);
           kill(child_array[i], SIGABRT);
@@ -293,12 +271,12 @@ int main(int argc, char **argv){
         while (true){
           pid_t done2 = waitpid(-1, &status, WNOHANG);      
           if (done2 == -1) {
-          printf("\nMANAGER:TERMINARON MIS HIJOS");
+          printf("\nMANAGER:TERMINARON MIS HIJOS\n");
           if (errno == ECHILD) break; // no more child processes
           }
         }
         
-        printf("MANAGER Uniendo archivos");
+        printf("MANAGER Uniendo archivos\n");
         printf("Here's my PID: %d\n\n", getpid());
         abort_flag = 0;
         alarm_flag = 0;
@@ -340,13 +318,17 @@ int main(int argc, char **argv){
     args[0] = exe;
     args_to_file[0] = exe;
     for (int j = 1; j < n_args + 1; j++){
-      char* clean_line = line[j+2];
+      // char* clean_line = line[j+2];
+      // char clean_line[10];
+      // strcpy(clean_line_to_file, clean_line);
 
-      // printf("clean line antes: %s\n", clean_line);
-      // clean_line[strcspn(clean_line, "\n")] = 0;
+      // printf("clean line to file: %s\n", clean_line_to_file);
+      // clean_line[strcspn(clean_line, "\n")] = "";
       // printf("clean line despues: %s\n", clean_line);
-      args[j] = clean_line;
-      args_to_file[j] = clean_line;
+      args[j] = line[j + 2];
+      args_to_file[j] = line[j + 2];
+      printf("args to file %d: %s\n",j, args_to_file[j]);
+      printf("args %d: %s\n",j, args[j]);
     }
     args[n_args + 1] = (char*)NULL;
     printf("Worker de la linea %d: voy a ejecutar %s\n", process, exe);
@@ -354,7 +336,6 @@ int main(int argc, char **argv){
     signal(SIGABRT,(void (*)(int))abort_handler); 
     //Creamos el hijo
     int status;
-    int signaled;
     time_t start, end;
     time(&start);
     pid_t childpid = fork();
@@ -380,7 +361,7 @@ int main(int argc, char **argv){
             printf("ABORTANDO WORKER Y CERRANDO ARCHIVO\n");
             time(&end);
             int exe_time = ((double) (end - start));
-            sprintf(interrupted, "%d\n", WIFSIGNALED(signaled));
+            sprintf(interrupted, "%d\n", abort_flag);
             sprintf(exit_code, "%d", WEXITSTATUS(status));
             sprintf(time_taken, "%d", exe_time);
             args_to_file[n_args + 1] = time_taken;
@@ -388,6 +369,7 @@ int main(int argc, char **argv){
             args_to_file[n_args + 3] = interrupted;
             char process_f[2];
             sprintf(process_f, "%i", process);
+
             printf("Worker de la linea %d (%s): INTERRUMPIDO!! Ahora voy a escribir mi archivo\n", process, exe);
             output_worker(process_f, n_args, args_to_file);
             free(args);
@@ -395,12 +377,15 @@ int main(int argc, char **argv){
             input_file_destroy(input);
             abort_flag = 0;
             return 0;
-
-            // Cambiar flag
             
           }
           if (sigint_flag ==1){
             sigint_flag = 0;
+            /////////////////////////////////////////////
+            //El Root se demora mucho en mandar SIGABRT a toda su descendencia
+            //Sin este sleep el Worker puede 
+            // sleep(1);
+            /////////////////////////////////////////////
             printf("IGNORING");
           }
 
@@ -408,7 +393,8 @@ int main(int argc, char **argv){
         
         time(&end);
         int exe_time = ((double) (end - start));
-        sprintf(interrupted, "%d\n", WIFSIGNALED(signaled));
+        printf("EXETIME:%d\n", exe_time);
+        sprintf(interrupted, "%d\n", abort_flag);
         sprintf(exit_code, "%d", WEXITSTATUS(status));
         sprintf(time_taken, "%d", exe_time);
         args_to_file[n_args + 1] = time_taken;
@@ -416,11 +402,7 @@ int main(int argc, char **argv){
         args_to_file[n_args + 3] = interrupted;
         char process_f[2];
         sprintf(process_f, "%i", process);
-        // printf("LLEGA AL FINAL DEL WORKER, ultimo arg:%s time: %s, exit: %s, interrupted:%s\n", args_to_file[n_args], args_to_file[n_args + 1], args_to_file[n_args + 2], args_to_file[n_args + 3]);
-        // for (int r = 0; r < n_args + 4; r++)
-        // {
-        //   printf("BUG BUG BUG args_to_file[%i]:%s\n", r, args_to_file[r]);
-        // }
+
         printf("Worker de la linea %d (%s): Terminé!! Ahora voy a escribir mi archivo\n", process, exe);
         output_worker(process_f, n_args, args_to_file);
         free(args);

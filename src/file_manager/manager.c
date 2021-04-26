@@ -49,6 +49,7 @@ InputFile* read_file(char* filename)
   InputFile* input_file = malloc(sizeof(InputFile));
   input_file->lines = calloc(atoi(buffer), sizeof(char**));
   input_file->len = atoi(buffer);
+  
 
   // Parse each line
   int index = 0;
