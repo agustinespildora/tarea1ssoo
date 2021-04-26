@@ -384,7 +384,7 @@ int main(int argc, char **argv){
             /////////////////////////////////////////////
             //El Root se demora mucho en mandar SIGABRT a toda su descendencia
             //Sin este sleep el Worker puede 
-            // sleep(1);
+            sleep(1);
             /////////////////////////////////////////////
             printf("IGNORING");
           }
