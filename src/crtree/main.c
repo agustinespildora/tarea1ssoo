@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include "../file_manager/manager.h"
 
 #define num 255
@@ -94,7 +95,26 @@ void output_worker(char* process, int n_args, char** args) {
   printf("Worker de la linea %s: Esribiendo linea: %s en ./%s.txt\n", process, line, process);
   fputs(line, file);
   free(line);
+  free(path);
   fclose(file);
+}
+
+//FUNCION OBTENIDA DE GITHUBGIST https://gist.github.com/Morse-Code/5310046
+char* stringRemoveNonAlphaNum(char* str)
+{
+  unsigned long i = 0;
+  unsigned long j = 0;
+  char c;
+
+  while ((c = str[i++]) != '\0')
+  {
+      if (isalnum(c))
+      {
+          str[j++] = c;
+      }
+  }
+  str[j] = '\0';
+  return str;
 }
 
 int main(int argc, char **argv){
@@ -308,7 +328,10 @@ int main(int argc, char **argv){
 
   else if (strcmp(id, W) == 0 ){
     printf("Linea %d es Worker y su PID es: %d\n", process, getpid());
-    signal(SIGINT,(void (*)(int))sigint_handler); 
+
+    signal(SIGINT,(void (*)(int))sigint_handler);
+    signal(SIGABRT,(void (*)(int))abort_handler);
+
     char* exe = line[1];
     int n_args = atoi(line[2]);
     char** args = calloc(n_args + 2, sizeof(char*));
@@ -318,22 +341,17 @@ int main(int argc, char **argv){
     args[0] = exe;
     args_to_file[0] = exe;
     for (int j = 1; j < n_args + 1; j++){
-      // char* clean_line = line[j+2];
-      // char clean_line[10];
-      // strcpy(clean_line_to_file, clean_line);
 
-      // printf("clean line to file: %s\n", clean_line_to_file);
-      // clean_line[strcspn(clean_line, "\n")] = "";
-      // printf("clean line despues: %s\n", clean_line);
-      args[j] = line[j + 2];
-      args_to_file[j] = line[j + 2];
-      printf("args to file %d: %s\n",j, args_to_file[j]);
-      printf("args %d: %s\n",j, args[j]);
+      //AQUI VAN UNA SERIE DE INTENTOS PARA SACAR EL SALTO DE LINEA MIESTERIOSO
+
+      //INTENTO 5 EUREKA!
+      args[j] = stringRemoveNonAlphaNum(line[j + 2]);
+      args_to_file[j] = stringRemoveNonAlphaNum(line[j + 2]);
+
     }
     args[n_args + 1] = (char*)NULL;
     printf("Worker de la linea %d: voy a ejecutar %s\n", process, exe);
-    
-    signal(SIGABRT,(void (*)(int))abort_handler); 
+     
     //Creamos el hijo
     int status;
     time_t start, end;
@@ -343,7 +361,7 @@ int main(int argc, char **argv){
     if (childpid >= 0){
       //Hijo
       if (childpid == 0){
-
+        signal(SIGINT,(void (*)(int))sigint_handler);
         execvp(exe, args);
     
       }
@@ -381,12 +399,9 @@ int main(int argc, char **argv){
           }
           if (sigint_flag ==1){
             sigint_flag = 0;
-            /////////////////////////////////////////////
-            //El Root se demora mucho en mandar SIGABRT a toda su descendencia
-            //Sin este sleep el Worker puede 
-            sleep(1);
-            /////////////////////////////////////////////
-            printf("IGNORING");
+            printf("IGNORING\n");
+            printf("SOY WORKER, ESPERO QUE MI HIJO TERMINE\n");
+
           }
 
         }
