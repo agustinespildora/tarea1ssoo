@@ -1,0 +1,6 @@
+5
+W,../test_files/timer,1,2
+R,6,2,2,0
+M,6,2,3,4
+W,../test_files/timer,1,7
+W,../test_files/sum,2,3,1
